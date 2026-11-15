@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Onit</title>
+<meta name="theme-color" content="#F4EDE1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E0F18" media="(prefers-color-scheme: dark)">
+<!-- script/style/font/img 开放 https 外源、connect 开放 http(s)：srcdoc 小应用会继承本页策略，
+     应用要能引 CDN 库、取公开接口。残余防线：宿主页全 textContent 建节点（模型内容不进 DOM），
+     模型产物只活在 sandbox 无同源的帧里；应用自己的 CSP 单独管它；硬禁令在生成侧拦。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' http: https:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<link rel="stylesheet" href="advisor-voice.css?v=20261114z6">
+<script defer src="advisor-app.js?v=20261114z6"></script>
+<script defer src="advisor-voice.js?v=20261114z6"></script>
+</head>
+<body>
+<div class="app-shell" id="spaceApp">
+
+  <header class="topbar">
+    <div class="identity">
+      <span class="identity-mark" aria-hidden="true">Onit</span>
+      <div class="identity-copy">
+        <p class="date-line" id="dateLine">11月13日 周五</p>
+        <span class="demo-tag" id="demoMark">示例</span>
+      </div>
+    </div>
+    <button class="quiet-toggle" type="button" id="silencePreviewBtn" aria-label="安静一天">安静</button>
+  </header>
+
+  <div class="live-banner" id="liveBanner" hidden role="status" aria-live="polite">
+    <span id="liveBannerText"></span>
+    <button class="live-retry" type="button" id="liveGenRetryBtn" hidden>再试一次</button>
+    <button class="live-retry" type="button" id="liveRetryBtn" hidden>重试</button>
+  </div>
+
+  <main class="app-main" id="appMain">
+    <div class="view-track" id="viewTrack">
+      <section class="view is-active" id="viewToday" role="tabpanel" aria-labelledby="tabToday">
+        <div class="view-scroll" id="todayScroll">
+          <div class="today-stack" id="todayMount"></div>
+        </div>
+      </section>
+
+      <section class="view" id="viewHistory" role="tabpanel" aria-labelledby="tabHistory" aria-hidden="true">
+        <div class="view-scroll" id="historyScroll">
+          <header class="view-heading">
+            <h1 class="view-title">记忆</h1>
+          </header>
+          <div class="memory-list" id="historyMount"></div>
+        </div>
+      </section>
+
+      <section class="view" id="viewSources" role="tabpanel" aria-labelledby="tabSources" aria-hidden="true">
+        <div class="view-scroll" id="sourcesScroll">
+          <header class="view-heading">
+            <h1 class="view-title">来源</h1>
+          </header>
+          <div class="source-list" id="sourcesMount"></div>
+          <section class="settings-block" id="settingsMount"></section>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <nav class="tabbar" role="tablist" aria-label="主要页面">
+    <span class="tab-indicator" id="tabIndicator" aria-hidden="true"></span>
+    <button class="tab is-active" type="button" id="tabToday" role="tab" aria-selected="true" aria-controls="viewToday" data-view="today">
+      <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2.8v2.1M12 19.1v2.1M2.8 12h2.1M19.1 12h2.1M5.5 5.5l1.5 1.5M17 17l1.5 1.5M18.5 5.5L17 7M7 17l-1.5 1.5"></path></svg>
+      <span>今天</span>
+    </button>
+    <button class="tab" type="button" id="tabHistory" role="tab" aria-selected="false" aria-controls="viewHistory" data-view="history">
+      <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 4.5h11v15l-5.5-3.8-5.5 3.8z"></path></svg>
+      <span>记忆</span>
+    </button>
+    <button class="tab" type="button" id="tabSources" role="tab" aria-selected="false" aria-controls="viewSources" data-view="sources">
+      <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h6l1.8 2H20v9.5H4z"></path><path d="M4 7.5V5h6l1.8 2.5"></path></svg>
+      <span>来源</span>
+    </button>
+  </nav>
+
+  <div class="sheet-backdrop" id="evidenceBackdrop" hidden>
+    <div class="sheet" id="evidenceSheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <div class="sheet-grab-area" id="sheetGrabArea">
+        <div class="sheet-handle" aria-hidden="true"></div>
+      </div>
+      <div class="sheet-header">
+        <div class="sheet-heading">
+          <h2 class="sheet-title" id="sheetTitle">原文</h2>
+          <p class="sheet-origin" id="sheetOrigin"></p>
+        </div>
+        <button class="sheet-close" type="button" id="sheetCloseBtn" aria-label="关闭原文抽屉">关闭</button>
+      </div>
+      <div class="sheet-body" id="sheetBody"></div>
+    </div>
+  </div>
+
+  <div class="undo-bar" id="undoBar" hidden role="status" aria-live="polite">
+    <span class="undo-text" id="undoText">已忘掉</span>
+    <button class="undo-btn" type="button" id="undoActionBtn">撤回</button>
+  </div>
+
+</div>
+</body>
+</html>
