@@ -1377,6 +1377,53 @@ textarea { caret-color: var(--accent); }
 .source-row[aria-checked="true"] .switch-track { background: var(--accent); }
 .source-row[aria-checked="true"] .switch-thumb { transform: translate3d(20px, 0, 0); background: var(--accent-ink); }
 
+/* 设备上的真实来源行：不是假开关，是一行一个动作或状态 */
+.source-row.source-action { min-height: 68px; }
+
+.source-sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.source-affordance {
+  flex: 0 0 auto;
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.source-affordance.is-muted { color: var(--ink-muted); }
+
+.source-row:disabled { color: var(--ink-muted); }
+.source-row:disabled .source-name { color: var(--ink-muted); }
+.source-row:disabled:hover, .source-row:disabled:active { background: transparent; }
+
+.photo-note {
+  padding: 14px 18px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-lo);
+}
+
+.photo-note-img {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+
+.photo-note-field { display: block; margin: 0; }
+.photo-note-field .model-field-label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 700; color: var(--ink); }
+.photo-note .settings-actions { margin-top: 12px; }
+.photo-note-error { margin: 8px 0 0; font-size: 13px; font-weight: 700; color: var(--ink); }
+
 .settings-block {
   margin-top: 16px;
   padding: 18px;

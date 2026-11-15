@@ -160,7 +160,8 @@
     acting: false
   };
 
-  var live = { mode: "", token: "", voice: null, model: null, pollTimer: null, pollFails: 0, failed: null, redoBase: {} };
+  var live = { mode: "", token: "", voice: null, model: null, pollTimer: null, pollFails: 0, failed: null, redoBase: {},
+    worldSources: null, notifyStatus: null, photoOpen: false, photoData: "", photoNote: "", photoError: "" };
 
   /* ---- 数据与持久化 ---- */
   function detectLiveMode() {
@@ -577,13 +578,19 @@
 
   function buildQuickGrid() {
     var grid = el("div", "quick-grid");
-    var enabled = countEnabledSources();
 
     var src = button("quick-card quick-sources");
     if (!state.booted) src.classList.add("is-entering");
-    src.setAttribute("aria-label", "去开关来源");
-    src.appendChild(el("span", "quick-label", "来源"));
-    src.appendChild(el("span", "quick-value", enabled + "/" + state.sources.length));
+    if (live.mode === "bridge") {
+      var collected = (live.worldSources || []).length;
+      src.setAttribute("aria-label", "已收录来源 " + collected + " 条");
+      src.appendChild(el("span", "quick-label", "来源"));
+      src.appendChild(el("span", "quick-value", String(collected)));
+    } else {
+      src.setAttribute("aria-label", "去开关来源");
+      src.appendChild(el("span", "quick-label", "来源"));
+      src.appendChild(el("span", "quick-value", countEnabledSources() + "/" + state.sources.length));
+    }
     src.addEventListener("click", function () { switchView("sources", true); });
     grid.appendChild(src);
 
@@ -1142,24 +1149,28 @@
   /* ---- 来源与设置 ---- */
   function renderSources() {
     clear(sourcesMount);
-    for (var i = 0; i < state.sources.length; i++) {
-      (function (src) {
-        var row = button("source-row");
-        row.setAttribute("role", "switch");
-        row.setAttribute("aria-checked", src.enabled ? "true" : "false");
-        var copy = el("span", "source-copy");
-        copy.appendChild(el("span", "source-name", src.name));
-        row.appendChild(copy);
-        var track = el("span", "switch-track");
-        track.appendChild(el("span", "switch-thumb"));
-        row.appendChild(track);
-        row.addEventListener("click", function () {
-          src.enabled = !src.enabled;
-          saveSources();
-          renderAll();
-        });
-        sourcesMount.appendChild(row);
-      })(state.sources[i]);
+    if (live.mode === "bridge") {
+      renderBridgeSourceRows();
+    } else {
+      for (var i = 0; i < state.sources.length; i++) {
+        (function (src) {
+          var row = button("source-row");
+          row.setAttribute("role", "switch");
+          row.setAttribute("aria-checked", src.enabled ? "true" : "false");
+          var copy = el("span", "source-copy");
+          copy.appendChild(el("span", "source-name", src.name));
+          row.appendChild(copy);
+          var track = el("span", "switch-track");
+          track.appendChild(el("span", "switch-thumb"));
+          row.appendChild(track);
+          row.addEventListener("click", function () {
+            src.enabled = !src.enabled;
+            saveSources();
+            renderAll();
+          });
+          sourcesMount.appendChild(row);
+        })(state.sources[i]);
+      }
     }
 
     clear(settingsMount);
@@ -1194,25 +1205,241 @@
     fs.appendChild(seg);
     settingsMount.appendChild(fs);
 
-    var actions = el("div", "settings-actions");
-    var allBtn = button("ghost-link", countEnabledSources() > 0 ? "全部断开" : "全部接通");
-    allBtn.addEventListener("click", function () {
-      var next = countEnabledSources() === 0;
-      for (var s = 0; s < state.sources.length; s++) state.sources[s].enabled = next;
-      saveSources();
-      renderAll();
-    });
-    actions.appendChild(allBtn);
+    if (live.mode !== "bridge") {
+      var actions = el("div", "settings-actions");
+      var allBtn = button("ghost-link", countEnabledSources() > 0 ? "全部断开" : "全部接通");
+      allBtn.addEventListener("click", function () {
+        var next = countEnabledSources() === 0;
+        for (var s = 0; s < state.sources.length; s++) state.sources[s].enabled = next;
+        saveSources();
+        renderAll();
+      });
+      actions.appendChild(allBtn);
 
-    var reset = button("ghost-link", "重置");
-    reset.addEventListener("click", resetDemo);
-    actions.appendChild(reset);
-    settingsMount.appendChild(actions);
+      var reset = button("ghost-link", "重置");
+      reset.addEventListener("click", resetDemo);
+      actions.appendChild(reset);
+      settingsMount.appendChild(actions);
+    }
 
     /* 设备阶段：小应用生成要一个 HTTP 模型地址。浏览器实时态由服务端
        配置管，这里只给安装包用。 */
     if (live.mode === "bridge") settingsMount.appendChild(buildModelSettings());
   }
+
+  /* ---- 设备上的真实来源（桥模式） ----
+   * 通知走系统监听授权，相册走系统选择器加一句备注，日历走系统日程
+   * 选择器。短信受系统限制先不开放。收录都经 source-add 进档案库。 */
+
+  function refreshBridgeSources(rerender) {
+    if (live.mode !== "bridge") return;
+    if (window.AndroidStorage && typeof window.AndroidStorage.sources === "function") {
+      var parsed = null;
+      try { parsed = JSON.parse(window.AndroidStorage.sources()); } catch (e) { parsed = null; }
+      live.worldSources = parsed && parsed.sources ? parsed.sources : [];
+    }
+    if (window.AndroidNotifications && typeof window.AndroidNotifications.status === "function") {
+      var status = null;
+      try { status = JSON.parse(window.AndroidNotifications.status()); } catch (e2) { status = null; }
+      live.notifyStatus = status;
+    }
+    if (rerender) renderAll();
+  }
+
+  function bridgeKindCount(kind) {
+    var rows = live.worldSources || [];
+    var n = 0;
+    for (var i = 0; i < rows.length; i++) if (rows[i].kind === kind) n++;
+    return n;
+  }
+
+  function bridgeSourceAdd(kind, origin, title, text, onOk, onFail) {
+    var raw = "";
+    try { raw = window.AndroidStorage.sourceAdd(kind, origin, title, text); } catch (e) { raw = ""; }
+    var reply = null;
+    try { reply = JSON.parse(raw); } catch (e2) { reply = null; }
+    if (reply && reply.ok) { onOk(reply); return; }
+    var code = reply && reply.error ? reply.error : "storage_error";
+    if (code === "empty_world") onFail("档案还没建好，先在首页完成第一次解读，再收录外部材料。");
+    else if (code === "invalid_input") onFail("内容没写或太长，改一改再收。");
+    else onFail("本机没应答，稍后再试。");
+  }
+
+  function renderBridgeSourceRows() {
+    var enabled = !!(live.notifyStatus && live.notifyStatus.enabled);
+    var noticeCount = live.notifyStatus ? (live.notifyStatus.count || 0) : 0;
+    var photoCount = bridgeKindCount("photo");
+    var calendarCount = bridgeKindCount("calendar");
+
+    var notif = button("source-row source-action");
+    notif.appendChild(bridgeRowCopy("通知", enabled
+      ? (noticeCount > 0 ? "已收录 " + noticeCount + " 条通知" : "已授权，来新通知会自动收录")
+      : "点这行去系统设置，允许 Onit 读取通知"));
+    notif.appendChild(bridgeRowAffordance(enabled ? "已授权" : "未授权", !enabled));
+    notif.addEventListener("click", function () {
+      try { window.AndroidNotifications.openSettings(); } catch (e) {}
+    });
+    sourcesMount.appendChild(notif);
+
+    var photos = button("source-row source-action");
+    photos.appendChild(bridgeRowCopy("相册", photoCount > 0
+      ? "已收录 " + photoCount + " 条照片备注" : "选一张照片，写一句话说明"));
+    photos.appendChild(bridgeRowAffordance("选照片", false));
+    photos.addEventListener("click", function () {
+      live.photoOpener = photos;
+      try { window.AndroidPhotos.pick(); } catch (e) {}
+    });
+    sourcesMount.appendChild(photos);
+    if (live.photoOpen && live.photoData) sourcesMount.appendChild(buildPhotoNotePanel());
+
+    var calendar = button("source-row source-action");
+    calendar.appendChild(bridgeRowCopy("日历", calendarCount > 0
+      ? "已收录 " + calendarCount + " 条日程" : "从系统日历选几条日程进来"));
+    calendar.appendChild(bridgeRowAffordance("选日程", false));
+    calendar.addEventListener("click", function () {
+      try { window.AndroidAdvisor.chooseCalendarEvents(); } catch (e) {}
+    });
+    sourcesMount.appendChild(calendar);
+
+    var sms = button("source-row source-action");
+    sms.disabled = true;
+    sms.appendChild(bridgeRowCopy("短信", "系统暂不开放读取，接入方案在定"));
+    sms.appendChild(bridgeRowAffordance("暂未开放", true));
+    sourcesMount.appendChild(sms);
+  }
+
+  function bridgeRowCopy(name, sub) {
+    var copy = el("span", "source-copy");
+    copy.appendChild(el("span", "source-name", name));
+    copy.appendChild(el("span", "source-sub", sub));
+    return copy;
+  }
+
+  function bridgeRowAffordance(word, muted) {
+    return el("span", "source-affordance" + (muted ? " is-muted" : ""), word);
+  }
+
+  function buildPhotoNotePanel() {
+    var panel = el("div", "photo-note");
+    var img = document.createElement("img");
+    img.className = "photo-note-img";
+    img.src = live.photoData;
+    img.alt = "选中的照片预览";
+    panel.appendChild(img);
+    var field = el("label", "model-field photo-note-field");
+    field.setAttribute("for", "photoNoteInput");
+    field.appendChild(el("span", "model-field-label", "这张照片是什么"));
+    var input = document.createElement("input");
+    input.className = "model-input";
+    input.id = "photoNoteInput";
+    input.type = "text";
+    input.maxLength = 140;
+    input.placeholder = "写一句，比如：房东说下周来修热水器";
+    input.value = live.photoNote;
+    input.addEventListener("input", function () {
+      live.photoNote = input.value;
+      if (!live.photoError) return;
+      live.photoError = "";
+      var line = panel.querySelector(".photo-note-error");
+      if (line) line.hidden = true;
+    });
+    field.appendChild(input);
+    panel.appendChild(field);
+    var error = el("p", "model-error photo-note-error");
+    error.hidden = true;
+    panel.appendChild(error);
+    var acts = el("div", "settings-actions");
+    var keep = button("btn btn-primary", "收录进顾问");
+    keep.addEventListener("click", function () {
+      var note = String(live.photoNote || "").trim();
+      if (!note) {
+        error.textContent = "先写一句说明，照片本身不会存进档案。";
+        error.hidden = false;
+        input.focus();
+        return;
+      }
+      keep.disabled = true;
+      bridgeSourceAdd("photo", "相册", note, note, function () {
+        live.photoOpen = false;
+        live.photoData = "";
+        live.photoNote = "";
+        refreshBridgeSources(true);
+        if (live.photoOpener && typeof live.photoOpener.focus === "function") {
+          try { live.photoOpener.focus(); } catch (e) {}
+        }
+      }, function (message) {
+        keep.disabled = false;
+        error.textContent = message;
+        error.hidden = false;
+      });
+    });
+    acts.appendChild(keep);
+    var cancel = button("ghost-link", "不收了");
+    cancel.addEventListener("click", function () {
+      live.photoOpen = false;
+      live.photoData = "";
+      live.photoNote = "";
+      live.photoError = "";
+      renderAll();
+      if (live.photoOpener && typeof live.photoOpener.focus === "function") {
+        try { live.photoOpener.focus(); } catch (e) {}
+      }
+    });
+    acts.appendChild(cancel);
+    panel.appendChild(acts);
+    if (live.photoError) {
+      error.textContent = live.photoError;
+      error.hidden = false;
+    }
+    return panel;
+  }
+
+  /* 相册桥把选好的照片送回这里；只开面板，收录要等用户写完备注。 */
+  window.__oqPhoto = function (dataUrl) {
+    if (live.mode !== "bridge") return;
+    if (!dataUrl) {
+      if (live.photoOpen && !live.photoData) live.photoOpen = false;
+      return;
+    }
+    live.photoData = String(dataUrl);
+    live.photoOpen = true;
+    live.photoNote = "";
+    live.photoError = "";
+    renderAll();
+    var input = document.getElementById("photoNoteInput");
+    if (input) input.focus();
+  };
+
+  /* 日历选择器把选中的日程送回这里，转成一条「日历」类来源。 */
+  window.advisorCalendar = function (payload) {
+    if (live.mode !== "bridge" || !payload || payload.error) return;
+    var events = payload.events || [];
+    var lines = [];
+    for (var i = 0; i < events.length; i++) {
+      var ev = events[i];
+      var title = String(ev.title || "").trim();
+      if (!title) continue;
+      var when = "";
+      var begin = new Date(Number(ev.begin));
+      if (!isNaN(begin.getTime())) {
+        when = (begin.getMonth() + 1) + "月" + begin.getDate() + "日";
+        if (!ev.allDay) {
+          var hh = String(begin.getHours());
+          var mm = String(begin.getMinutes());
+          when += " " + (mm === "0" ? hh + "点" : hh + ":" + (mm.length < 2 ? "0" + mm : mm));
+        }
+      }
+      lines.push(when ? when + " " + title : title);
+    }
+    if (!lines.length) return;
+    bridgeSourceAdd("calendar", "日历", "日历日程", lines.join("\n"), function () {
+      refreshBridgeSources(true);
+    }, function (message) {
+      liveBannerEl.hidden = false;
+      liveBannerTextEl.textContent = message;
+      liveRetryBtn.hidden = true;
+    });
+  };
 
   /* ---- 模型设置（设备阶段） ---- */
   var modelFormNode = null;
@@ -2074,7 +2301,7 @@
     return false;
   };
 
-  /* 配对深链（onit://pair?server=…&token=…）：原生侧先入队，
+  /* 配对深链（openquest://pair?server=…&token=…）：原生侧先入队，
    * 页面就绪后取一次；带 payload 直接调也认。 */
   window.advisorPairLink = function (payload) {
     var bridge = window.AndroidSession;
@@ -2109,7 +2336,15 @@
   };
 
   live.mode = detectLiveMode();
-  if (live.mode === "bridge") loadModelConfig();
+  if (live.mode === "bridge") {
+    loadModelConfig();
+    refreshBridgeSources(false);
+    /* 从系统授权页回来时刷新通知开关状态；备注面板开着时不重画，免得打断输入。 */
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) return;
+      refreshBridgeSources(state.activeView === "sources" && !live.photoOpen);
+    });
+  }
   applyTheme();
   renderAll();
   switchView("today", false);

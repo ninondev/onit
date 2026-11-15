@@ -88,7 +88,7 @@ Some tests skip unless their environment variables are set: `ONIT_REAL_MODEL_END
 
 ## Status
 
-Early. The interface is in Chinese; expect the API to change. The Android app ships as a signed APK under Releases (demo1, Android 8.0 or newer); the app's source is not part of this repository.
+Early. The interface is in Chinese; expect the API to change. The Android app ships as a signed APK under Releases (currently demo2, Android 8.0 or newer); the app's source is not part of this repository.
 
 ## License
 

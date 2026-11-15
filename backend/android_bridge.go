@@ -20,6 +20,9 @@ type androidRequest struct {
 	Base             string          `json:"base"`
 	State            json.RawMessage `json:"state"`
 	Source           string          `json:"source"`
+	Kind             string          `json:"kind"`
+	Origin           string          `json:"origin"`
+	Title            string          `json:"title"`
 	Action           string          `json:"action"`
 	GoalID           string          `json:"goalId"`
 	Request          string          `json:"request"`
@@ -78,6 +81,10 @@ func (s *Store) androidRequest(raw []byte) (object, error) {
 		return s.bridgeAppUpdate(r)
 	case "artifacts":
 		return s.bridgeArtifacts(r.Date)
+	case "source-add":
+		return s.androidSourceAdd(r.Kind, r.Origin, r.Title, r.Text)
+	case "sources":
+		return s.androidSources()
 	case "policy":
 		return proactivePolicyReply(s.dbPath), nil
 	case "goalreview":
