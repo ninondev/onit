@@ -2,7 +2,7 @@
 
 [中文版](README.zh-CN.md)
 
-Onit is a personal adviser that runs on your own machine. You give it the material you want followed and the goals you want tracked. It works in the background and comes back with results: a short observation each day, drawn from your material; reviews of your goals, on a schedule you enable; briefs prepared from your sources, with the original quotes kept beside them; and small single-purpose apps generated from a sentence. One Go binary, one SQLite file, no account, no telemetry.
+Onit is a personal adviser that runs on your own device. You give it the material you want followed and the goals you want tracked. It works in the background and comes back with results: a short observation each day, drawn from your material; reviews of your goals, on a schedule you enable; briefs prepared from your sources, with the original quotes kept beside them; and small single-purpose apps generated from a sentence. All your data sits in one SQLite file. No account, no telemetry.
 
 It is built the other way round from a notes app: the record exists so the adviser has something to read. Every result carries the quote it came from.
 
@@ -88,7 +88,7 @@ Some tests skip unless their environment variables are set: `ONIT_REAL_MODEL_END
 
 ## Status
 
-Early. The interface is in Chinese, and there are no tagged releases yet; expect the API to change. The Android app is not part of this repository.
+Early. The interface is in Chinese; expect the API to change. The Android app ships as a signed APK under Releases (demo1, Android 8.0 or newer); the app's source is not part of this repository.
 
 ## License
 
